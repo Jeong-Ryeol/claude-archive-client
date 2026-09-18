@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Claude Archive Key Sync</title>
+<style>
+  body { font-family: system-ui, 'Malgun Gothic', sans-serif; width: 340px; padding: 14px; margin: 0; font-size: 13px; color: #1c1b19; }
+  h1 { font-size: 14px; margin: 0 0 10px; }
+  label { display: block; margin: 8px 0 3px; color: #6b6862; font-size: 12px; }
+  input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; }
+  .row { display: flex; gap: 6px; margin-top: 12px; }
+  button { padding: 6px 12px; border: 1px solid #c96442; background: #c96442; color: #fff; border-radius: 6px; cursor: pointer; font-family: inherit; }
+  button.sec { background: #fff; color: #c96442; }
+  #status { margin-top: 12px; padding: 8px 10px; border-radius: 6px; background: #f2f0ec; font-size: 12px; white-space: pre-wrap; }
+  #status.ok { background: #e6f4ea; } #status.bad { background: #fde8e6; }
+</style>
+</head>
+<body>
+<h1>Claude Archive Key Sync</h1>
+<label>아카이브 서버 주소</label>
+<input id="endpoint" placeholder="http://100.x.x.x:8800">
+<label>토큰 (INGEST_TOKEN)</label>
+<input id="token" type="password" placeholder="서버 .env 와 같은 값">
+<div class="row">
+  <button id="save">저장</button>
+  <button id="now" class="sec">지금 보내기</button>
+</div>
+<div id="status">…</div>
+<script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+{
+  "endpoint": "http://192.168.50.133:8800",
+  "token": "NAS .env 의 INGEST_TOKEN 과 같은 값"
+}

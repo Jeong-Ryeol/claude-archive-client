@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Archive Key Sync",
+  "version": "1.0",
+  "description": "claude.ai 로그인 세션을 개인 아카이브 서버로 자동 갱신합니다.",
+  "permissions": ["cookies", "alarms", "storage"],
+  "host_permissions": ["https://claude.ai/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html",
+  "action": { "default_title": "Claude Archive Key Sync — 설정", "default_popup": "options.html" }
+}
