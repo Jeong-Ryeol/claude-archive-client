@@ -2,6 +2,6 @@
   "endpoint": "http://100.103.235.96:8800",
   "token": "",
   "worker_id": "",
-  "claude_bin": "%USERPROFILE%\.local\bin\claude.exe",
+  "claude_bin": "%USERPROFILE%\\.local\\bin\\claude.exe",
   "concurrency": 2
 }

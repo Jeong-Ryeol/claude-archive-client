@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -23,6 +23,14 @@ describe('설정', () => {
     mkdirSync(path.join(home, '.local', 'bin'), { recursive: true });
     writeFileSync(path.join(home, '.local', 'bin', exe), '');
     expect(resolveClaudeBin('', env)).toBe(path.join(home, '.local', 'bin', exe));
+  });
+
+  it('config.example.json 은 올바른 JSON (설치 스크립트가 그대로 복사해 읽는다)', () => {
+    const raw = JSON.parse(readFileSync(new URL('../config.example.json', import.meta.url), 'utf8'));
+    expect(raw.claude_bin).toBe('%USERPROFILE%\\.local\\bin\\claude.exe');
+    const c = normalizeConfig({ ...raw, token: 't' }, { USERPROFILE: 'C:\\Users\\x' });
+    expect(c.endpoint).toBe('http://100.103.235.96:8800');
+    expect(c.concurrency).toBe(2);
   });
 
   it('기본값과 ws 주소', () => {
