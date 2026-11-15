@@ -38,6 +38,8 @@ export interface Job {
   context?: string | null;
   /** Claude 턴에 Codex 교차검증(MCP codex_review)을 붙인다 */
   cross_check?: boolean;
+  /** false 면 아카이브 검색 MCP 를 붙이지 않는다 (없으면 워커 설정대로) */
+  archive?: boolean;
   budget?: { turn_tokens?: number; hour_tokens?: number };
 }
 

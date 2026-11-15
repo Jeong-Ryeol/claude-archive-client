@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { Input, ThreadEvent, ThreadItem, ThreadOptions } from '@openai/codex-sdk';
 import { describe, expect, it } from 'vitest';
+import { ARCHIVE_APPEND, codexArchiveOptions } from '../src/archive.js';
 import { buildCodexInput, classifyCodexError, createCodexEngine, type CodexLike } from '../src/engines/codex.js';
 import { runReview, reviewOptions } from '../src/mcp/codex-review.js';
 import { parseCodexLogin, probeCodex } from '../src/sys.js';
@@ -227,6 +228,30 @@ describe('codex 엔진', () => {
       { type: 'text', text: `직전 답변 요약: A 로 하기로 함\n\n이거 봐줘\n\n첨부 파일: ${png}\n첨부 파일: ${txt}` },
       { type: 'local_image', path: png },
     ]);
+  });
+
+  it('아카이브 MCP: Codex 설정 덮어쓰기·토큰 환경변수·안내 문구', async () => {
+    const archive = { url: 'http://nas:8900/mcp', token: 'tok' };
+    expect(codexArchiveOptions({ A: '1' }, archive)).toEqual({
+      env: { A: '1', ARCHIVE_MCP_TOKEN: 'tok' },
+      config: { mcp_servers: { archive: { url: 'http://nas:8900/mcp', bearer_token_env_var: 'ARCHIVE_MCP_TOKEN' } } },
+    });
+    expect(codexArchiveOptions({ A: '1' }, null)).toEqual({ env: { A: '1' } });
+    expect(buildCodexInput(job({ prompt: 'q', context: '맥락' }), undefined, ARCHIVE_APPEND)).toEqual([
+      { type: 'text', text: `${ARCHIVE_APPEND}\n\n맥락\n\nq` },
+    ]);
+
+    // 엔진: archive 가 있으면 프롬프트 앞에 안내가 붙고, job.archive === false 면 안 붙는다
+    const seen: Seen = {};
+    const done: ThreadEvent[] = [
+      { type: 'thread.started', thread_id: 't1' },
+      { type: 'turn.completed', usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 } } as ThreadEvent,
+    ];
+    const engine = createCodexEngine({ codex: fakeCodex(done, seen), archive });
+    await engine.run(job({ prompt: 'q' }), collector().emit, makeCtl().ctl);
+    expect((seen.input as { text: string }[])[0].text).toBe(`${ARCHIVE_APPEND}\n\nq`);
+    await engine.run(job({ prompt: 'q', archive: false }), collector().emit, makeCtl().ctl);
+    expect((seen.input as { text: string }[])[0].text).toBe('q');
   });
 
   it('buildCodexInput: 맥락 없음·첨부 실패', () => {

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { archiveMcpOf, type ArchiveMcp } from './archive.js';
 
 export interface Config {
   endpoint: string;
@@ -15,7 +16,12 @@ export interface Config {
   auto_update: boolean;
   update_url?: string;
   update_zip?: string;
+  /** 아카이브 검색 MCP (없으면 null). config.json 의 archive_mcp_url 로 덮어쓰거나 'off' 로 끈다 */
+  archive_mcp: ArchiveMcp | null;
 }
+
+/** config.json 에 적을 수 있는 값 (Config 로 정리되기 전) */
+export type RawConfig = Partial<Omit<Config, 'archive_mcp'>> & { archive_mcp_url?: string; archive_mcp_token?: string };
 
 /** worker/ 폴더 (src 또는 dist 의 한 단계 위) */
 export const WORKER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -84,24 +90,26 @@ function normalizeRoots(v: unknown, env: NodeJS.ProcessEnv): string[] {
     .map((x) => path.resolve(x));
 }
 
-export function normalizeConfig(raw: Partial<Config>, env: NodeJS.ProcessEnv = process.env): Config {
+export function normalizeConfig(raw: RawConfig, env: NodeJS.ProcessEnv = process.env): Config {
   const endpoint = String(env.TALK_ENDPOINT || raw.endpoint || 'http://100.103.235.96:8800').replace(/\/+$/, '');
   const conc = Number(raw.concurrency ?? 2);
+  const token = String(env.TALK_TOKEN || raw.token || '');
   return {
     endpoint,
-    token: String(env.TALK_TOKEN || raw.token || ''),
+    token,
     worker_id: String(raw.worker_id || '').trim() || os.hostname(),
     claude_bin: resolveClaudeBin(env.TALK_CLAUDE_BIN || raw.claude_bin, env),
     concurrency: Number.isFinite(conc) && conc >= 1 ? Math.floor(conc) : 2,
     watch_roots: normalizeRoots(raw.watch_roots, env),
     auto_update: raw.auto_update !== false,
+    archive_mcp: archiveMcpOf(endpoint, token, env.TALK_ARCHIVE_MCP_URL || raw.archive_mcp_url, raw.archive_mcp_token),
     ...(typeof raw.update_url === 'string' && raw.update_url.trim() ? { update_url: raw.update_url.trim() } : {}),
     ...(typeof raw.update_zip === 'string' && raw.update_zip.trim() ? { update_zip: raw.update_zip.trim() } : {}),
   };
 }
 
 export function loadConfig(file = process.env.TALK_CONFIG || path.join(WORKER_DIR, 'config.json')): Config {
-  let raw: Partial<Config> = {};
+  let raw: RawConfig = {};
   if (existsSync(file)) {
     // 메모장이 붙이는 BOM 제거
     raw = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));

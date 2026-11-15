@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ARCHIVE_APPEND, ARCHIVE_TOOLS } from '../src/archive.js';
 import { classifyError, createClaudeEngine, CROSS_CHECK_APPEND } from '../src/engines/claude.js';
 import { collector, delta, fakeQuery, init, job, makeCtl, result, toolResult, toolUse, type FakeCtx } from './fake.js';
 
@@ -106,6 +107,26 @@ describe('claude 엔진', () => {
       ctl,
     );
     expect(seen.ctx!.firstUser?.message.content).toEqual([{ type: 'text', text: '직전 답변 요약: A 로 하기로 함\n\n이어서 해줘' }]);
+  });
+
+  it('아카이브 MCP: http 서버·허용 도구·안내 문구를 붙인다', async () => {
+    const seen: { ctx?: FakeCtx } = {};
+    const archive = { url: 'http://nas:8900/mcp', token: 'tok' };
+    const engine = createClaudeEngine({ claudeBin: 'claude.exe', query: fakeQuery([init('s'), result({ result: 'ok' })], seen), archive });
+    await engine.run(job({ system_append: '규칙', tools: ['Read'] }), collector().emit, makeCtl().ctl);
+    const o = seen.ctx!.options;
+    expect(o.mcpServers).toEqual({ archive: { type: 'http', url: 'http://nas:8900/mcp', headers: { Authorization: 'Bearer tok' } } });
+    expect(o.allowedTools).toEqual(['Read', ...ARCHIVE_TOOLS]);
+    expect(o.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code', append: `규칙\n\n${ARCHIVE_APPEND}` });
+
+    // 교차검증과 같이 쓰면 두 서버가 다 붙는다
+    await engine.run(job({ cross_check: true }), collector().emit, makeCtl().ctl);
+    expect(Object.keys(seen.ctx!.options.mcpServers as object).sort()).toEqual(['archive', 'codex']);
+
+    // 서버가 끄라고 하면(job.archive === false) 붙이지 않는다
+    await engine.run(job({ archive: false, tools: ['Read'] }), collector().emit, makeCtl().ctl);
+    expect(seen.ctx!.options.mcpServers).toBeUndefined();
+    expect(seen.ctx!.options.allowedTools).toEqual(['Read']);
   });
 
   it('교차검증 아님 → mcpServers 없음', async () => {

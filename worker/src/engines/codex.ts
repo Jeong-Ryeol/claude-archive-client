@@ -4,6 +4,7 @@ import { Codex } from '@openai/codex-sdk';
 import type { Input, SandboxMode, ThreadEvent, ThreadItem, ThreadOptions, UserInput } from '@openai/codex-sdk';
 import { attachmentLines, downloadAttachments, type DownloadResult } from '../attach.js';
 import { DEFAULT_TURN_TOKENS } from './claude.js';
+import { ARCHIVE_APPEND, codexArchiveOptions, type ArchiveMcp } from '../archive.js';
 import type { Engine, EngineCtl, Ev, Job } from './types.js';
 import { friendlyError } from './errors.js';
 
@@ -22,6 +23,8 @@ export interface CodexDeps {
   endpoint?: string;
   token?: string;
   codex?: CodexLike;
+  /** 아카이브 검색 MCP (있으면 Codex 설정에 붙이고 프롬프트 머리에 안내를 넣는다) */
+  archive?: ArchiveMcp | null;
   fetch?: typeof fetch;
   defaultTurnTokens?: number;
   log?: { info: (o: object, m?: string) => void; warn: (o: object, m?: string) => void };
@@ -45,8 +48,8 @@ export function envRecord(src: NodeJS.ProcessEnv = process.env): Record<string, 
   return out;
 }
 
-export function createCodexClient(env: Record<string, string> = envRecord()): CodexLike {
-  return new Codex({ env }) as unknown as CodexLike;
+export function createCodexClient(env: Record<string, string> = envRecord(), archive?: ArchiveMcp | null): CodexLike {
+  return new Codex(codexArchiveOptions(env, archive)) as unknown as CodexLike;
 }
 
 export function threadOptions(job: Job, log?: CodexDeps['log']): ThreadOptions {
@@ -67,9 +70,10 @@ export function threadOptions(job: Job, log?: CodexDeps['log']): ThreadOptions {
   };
 }
 
-/** 텍스트(맥락 + 질문 + 첨부 줄) 하나와 내려받은 이미지마다 local_image */
-export function buildCodexInput(job: Job, att: DownloadResult = { files: [], failed: [] }): UserInput[] {
+/** 텍스트(안내 + 맥락 + 질문 + 첨부 줄) 하나와 내려받은 이미지마다 local_image */
+export function buildCodexInput(job: Job, att: DownloadResult = { files: [], failed: [] }, hint = ''): UserInput[] {
   const parts: string[] = [];
+  if (hint.trim()) parts.push(hint.trim());
   if (job.context?.trim()) parts.push(job.context.trim());
   parts.push(job.prompt);
   const lines = attachmentLines(att);
@@ -238,10 +242,11 @@ export function createCodexEngine(deps: CodexDeps = {}): Engine {
       try {
         if (ctl.signal.aborted) stop('aborted');
         if (stopReason) return;
-        client ??= createCodexClient();
+        client ??= createCodexClient(envRecord(), deps.archive);
         const opts = threadOptions(job, deps.log);
         const thread = job.resume ? client.resumeThread(job.resume, opts) : client.startThread(opts);
-        const { events } = await thread.runStreamed(buildCodexInput(job, files), { signal: ac.signal });
+        const hint = deps.archive && job.archive !== false ? ARCHIVE_APPEND : '';
+        const { events } = await thread.runStreamed(buildCodexInput(job, files, hint), { signal: ac.signal });
         for await (const e of events) {
           handle(e);
           // 끝난 뒤에도 프로세스가 스스로 닫히도록 끝까지 읽는다(세션 기록 보존). 멈춤·예산만 바로 나간다.

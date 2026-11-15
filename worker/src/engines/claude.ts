@@ -10,6 +10,7 @@ import type {
   SDKMessage,
   SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
+import { ARCHIVE_APPEND, ARCHIVE_SERVER, ARCHIVE_TOOLS, type ArchiveMcp } from '../archive.js';
 import { WORKER_DIR } from '../config.js';
 import { attachmentLines, downloadAttachments, type DownloadResult } from '../attach.js';
 import type { Engine, EngineCtl, Ev, Job } from './types.js';
@@ -32,6 +33,8 @@ export interface ClaudeDeps {
   defaultTurnTokens?: number;
   /** 교차검증 MCP 서버 스크립트(빌드된 dist/mcp/codex-review.js) */
   codexReviewScript?: string;
+  /** 아카이브 검색 MCP (있으면 모든 턴에 붙인다. job.archive === false 면 뺀다) */
+  archive?: ArchiveMcp | null;
   log?: { info: (o: object, m?: string) => void; warn: (o: object, m?: string) => void };
 }
 
@@ -227,7 +230,25 @@ export function createClaudeEngine(deps: ClaudeDeps): Engine {
 
       const cross = job.cross_check === true;
       const reviewScript = deps.codexReviewScript ?? path.join(WORKER_DIR, 'dist', 'mcp', 'codex-review.js');
-      const append = [job.system_append ?? '', cross ? CROSS_CHECK_APPEND : ''].filter(Boolean).join('\n\n');
+      const archive = job.archive === false ? null : (deps.archive ?? null);
+      const append = [job.system_append ?? '', cross ? CROSS_CHECK_APPEND : '', archive ? ARCHIVE_APPEND : '']
+        .filter(Boolean)
+        .join('\n\n');
+      const mcpServers = {
+        ...(cross
+          ? {
+              codex: {
+                type: 'stdio' as const,
+                command: process.execPath,
+                args: [reviewScript],
+                env: { ...(process.env as Record<string, string>), TALK_CWD: job.cwd },
+              },
+            }
+          : {}),
+        ...(archive
+          ? { [ARCHIVE_SERVER]: { type: 'http' as const, url: archive.url, headers: { Authorization: `Bearer ${archive.token}` } } }
+          : {}),
+      };
 
       const mode = (job.permission_mode || 'default') as PermissionMode;
       if (!MODES.includes(mode)) deps.log?.warn({ mode }, '허용하지 않는 권한 모드, default 로 바꿈');
@@ -237,7 +258,7 @@ export function createClaudeEngine(deps: ClaudeDeps): Engine {
         env: { ...process.env, DISABLE_AUTOUPDATER: '1' },
         ...(job.resume ? { resume: job.resume } : { sessionId: job.thread_id }),
         permissionMode: MODES.includes(mode) ? mode : 'default',
-        allowedTools: cross ? [...(job.tools ?? []), REVIEW_TOOL] : (job.tools ?? []),
+        allowedTools: [...(job.tools ?? []), ...(cross ? [REVIEW_TOOL] : []), ...(archive ? ARCHIVE_TOOLS : [])],
         disallowedTools: DISALLOWED,
         tools: { type: 'preset', preset: 'claude_code' },
         toolConfig: { askUserQuestion: { previewFormat: 'markdown' } },
@@ -247,18 +268,7 @@ export function createClaudeEngine(deps: ClaudeDeps): Engine {
         ...(claudeEffort(job.effort) ? { effort: claudeEffort(job.effort) } : {}),
         includePartialMessages: true,
         maxTurns: 40,
-        ...(cross
-          ? {
-              mcpServers: {
-                codex: {
-                  type: 'stdio' as const,
-                  command: process.execPath,
-                  args: [reviewScript],
-                  env: { ...(process.env as Record<string, string>), TALK_CWD: job.cwd },
-                },
-              },
-            }
-          : {}),
+        ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
         abortController,
         canUseTool,
       };

@@ -33,6 +33,18 @@ describe('설정', () => {
     expect(c.concurrency).toBe(2);
   });
 
+  it('아카이브 MCP: endpoint 에서 8900/mcp 를 만들고, 덮어쓰기·끄기', () => {
+    const c = normalizeConfig({ endpoint: 'http://100.103.235.96:8800/', token: 't' }, {});
+    expect(c.archive_mcp).toEqual({ url: 'http://100.103.235.96:8900/mcp', token: 't' });
+    expect(normalizeConfig({ token: 't', archive_mcp_url: 'off' }, {}).archive_mcp).toBeNull();
+    expect(normalizeConfig({ token: '' }, {}).archive_mcp).toBeNull(); // 토큰이 없으면 붙이지 않는다
+    expect(normalizeConfig({ token: 't', archive_mcp_url: 'https://x.example/mcp', archive_mcp_token: 'm' }, {}).archive_mcp).toEqual({
+      url: 'https://x.example/mcp',
+      token: 'm',
+    });
+    expect(normalizeConfig({ token: 't' }, { TALK_ARCHIVE_MCP_URL: 'http://n:1/mcp' }).archive_mcp?.url).toBe('http://n:1/mcp');
+  });
+
   it('기본값과 ws 주소', () => {
     const c = normalizeConfig({ endpoint: 'http://100.103.235.96:8800/', token: 't' }, {});
     expect(c.concurrency).toBe(2);

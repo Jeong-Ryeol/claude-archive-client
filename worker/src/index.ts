@@ -26,7 +26,7 @@ try {
 } catch {
   /* 설치 스크립트의 정리용일 뿐 */
 }
-log.info({ worker: cfg.worker_id, endpoint: cfg.endpoint, claude_bin: cfg.claude_bin, version }, '워커 시작');
+log.info({ worker: cfg.worker_id, endpoint: cfg.endpoint, claude_bin: cfg.claude_bin, archive_mcp: cfg.archive_mcp?.url ?? null, version }, '워커 시작');
 
 // 엔진 확인은 10분 캐시 (재접속마다 프로세스를 띄우지 않게)
 let probe: { at: number; v: ClaudeProbe } | null = null;
@@ -48,8 +48,8 @@ async function codexInfo(): Promise<CodexProbe> {
 }
 
 const engines = {
-  claude: createClaudeEngine({ claudeBin: cfg.claude_bin, endpoint: cfg.endpoint, token: cfg.token, log }),
-  codex: createCodexEngine({ endpoint: cfg.endpoint, token: cfg.token, log }),
+  claude: createClaudeEngine({ claudeBin: cfg.claude_bin, endpoint: cfg.endpoint, token: cfg.token, archive: cfg.archive_mcp, log }),
+  codex: createCodexEngine({ endpoint: cfg.endpoint, token: cfg.token, archive: cfg.archive_mcp, log }),
 };
 
 const topics = new TopicRegistry({ log });
