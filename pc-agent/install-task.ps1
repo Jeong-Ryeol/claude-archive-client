@@ -1,5 +1,6 @@
-<#
+﻿<#
   Windows 예약 작업 등록: 로그인 후 5분마다 push-logs.ps1 실행 (창 없이).
+  노트북이 배터리일 때도 실행되도록 배터리 옵션 포함.
   관리자 권한 불필요. 제거: Unregister-ScheduledTask -TaskName 'claude-archive push' -Confirm:$false
 #>
 $here   = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -12,6 +13,7 @@ $action  = New-ScheduledTaskAction -Execute 'powershell.exe' `
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
   -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable `
+  -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
 Register-ScheduledTask -TaskName 'claude-archive push' -Action $action -Trigger $trigger `
   -Settings $settings -Description 'Claude Code/Cowork 세션 로그를 NAS 아카이브로 업로드' -Force | Out-Null

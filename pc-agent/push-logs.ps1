@@ -1,4 +1,4 @@
-<#
+﻿<#
   PC → NAS 세션 로그 업로더.
   ~/.claude/projects 와 Cowork 세션 폴더의 세션 JSONL 중 바뀐 것만 NAS ingest API 로 올린다.
   상태(마지막 업로드 크기·mtime)는 %LOCALAPPDATA%\claude-archive\state.json 에 저장.

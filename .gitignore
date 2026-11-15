@@ -1,1 +1,5 @@
 pc-agent/config.json
+worker/config.json
+worker/node_modules/
+worker/dist/
+worker/logs/

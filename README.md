@@ -12,5 +12,6 @@ Claude Code 에게: **"SETUP-GUIDE.md 따라서 이 노트북 설정 도와줘. 
 
 - `chrome-ext/` — claude.ai 로그인 키를 서버로 자동 전달 (Chrome 개발자 모드로 로드). **이 폴더를 지우면 확장이 멈춥니다.**
 - `pc-agent/` — Claude Code·Cowork 기록을 5분마다 서버로 (`설치_더블클릭.bat`)
+- `worker/` — 통합 채팅방 워커: 노트북의 Claude·Codex 를 서버 대신 실행하고 작품 폴더를 감시 (`설치.bat`)
 - `SETUP-GUIDE.md` — 순서대로 따라 하는 안내
 - `OBSIDIAN-ENCRYPTION-OFF.md` — 옵시디언 노트도 모으려면
