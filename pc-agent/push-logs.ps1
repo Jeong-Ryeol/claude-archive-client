@@ -31,7 +31,10 @@ $maxCodexPerRun = 2000
 function Save-State { $state | ConvertTo-Json -Compress | Set-Content $statePath -Encoding UTF8 }
 $uuidRe = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 $sent = 0; $failed = 0
+$reasons = New-Object System.Collections.Generic.List[string]
 
+# 1) 올릴 것 모으기 (모든 출처)
+$pending = New-Object System.Collections.Generic.List[object]
 foreach ($r in $roots) {
   if (-not (Test-Path $r.root)) { continue }
   if ($r.codex) {
@@ -49,18 +52,31 @@ foreach ($r in $roots) {
     if ($state[$key] -eq $sig) { continue }
     if ($r.codex -and $n -ge $maxCodexPerRun) { break }
     $n++
-    $uri = "$($cfg.endpoint.TrimEnd('/'))/ingest/$($r.source)/$rel"
-    try {
-      Invoke-RestMethod -Method Post -Uri $uri -InFile $f.FullName -ContentType 'application/octet-stream' `
-        -Headers @{ 'X-Ingest-Token' = $cfg.token } -TimeoutSec 60 | Out-Null
-      $state[$key] = $sig; $sent++
-      if (($sent % 200) -eq 0) { Save-State }   # 오래 걸리는 첫 실행이 중간에 끊겨도 처음부터 다시 하지 않게
-    } catch {
-      $failed++
-      Write-Warning "upload failed: $rel — $($_.Exception.Message)"
-    }
+    $pending.Add([pscustomobject]@{ f = $f; source = $r.source; rel = $rel; key = $key; sig = $sig; bad = [bool]$state["!fail:$key"] })
+  }
+}
+
+# 2) 지난번에 실패한 파일은 맨 뒤로 (같은 파일이 매번 앞에서 시간을 다 써서 뒤 출처가 굶지 않게)
+$ordered = @($pending | Where-Object { -not $_.bad }) + @($pending | Where-Object { $_.bad })
+
+foreach ($p in $ordered) {
+  $uri = "$($cfg.endpoint.TrimEnd('/'))/ingest/$($p.source)/$($p.rel)"
+  # 큰 파일(수백 MB 세션)은 60초로는 모자란다 → 크기에 비례 (200KB/초 기준, 최소 2분)
+  $timeout = [Math]::Max(120, [int]($p.f.Length / 200KB))
+  try {
+    Invoke-RestMethod -Method Post -Uri $uri -InFile $p.f.FullName -ContentType 'application/octet-stream' `
+      -Headers @{ 'X-Ingest-Token' = $cfg.token } -TimeoutSec $timeout | Out-Null
+    $state[$p.key] = $p.sig; $state.Remove("!fail:$($p.key)"); $sent++
+    if (($sent % 200) -eq 0) { Save-State }   # 오래 걸리는 첫 실행이 중간에 끊겨도 처음부터 다시 하지 않게
+  } catch {
+    $failed++
+    $state["!fail:$($p.key)"] = 1
+    if ($reasons.Count -lt 5) { $reasons.Add("  fail: $($p.key) ($([int]($p.f.Length / 1MB))MB) - $($_.Exception.Message)") }
+    Write-Warning "upload failed: $($p.rel) — $($_.Exception.Message)"
   }
 }
 
 Save-State
-"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') sent=$sent failed=$failed" | Add-Content (Join-Path $stateDir 'push.log')
+$log = Join-Path $stateDir 'push.log'
+"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') sent=$sent failed=$failed" | Add-Content $log
+if ($reasons.Count) { $reasons | Add-Content $log }   # 왜 실패했는지 (앞 5건)

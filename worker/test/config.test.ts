@@ -25,6 +25,12 @@ describe('설정', () => {
     expect(resolveClaudeBin('', env)).toBe(path.join(home, '.local', 'bin', exe));
   });
 
+  it('설치.bat 은 CRLF 줄바꿈 (자동 업데이트가 zip 에서 그대로 풀어 쓴다. LF 면 cmd 가 한글 줄을 잘못 읽는다)', () => {
+    const bat = readFileSync(new URL('../설치.bat', import.meta.url), 'latin1');
+    expect(bat).toContain('\r\n');
+    expect(bat.replace(/\r\n/g, '')).not.toContain('\n');
+  });
+
   it('config.example.json 은 올바른 JSON (설치 스크립트가 그대로 복사해 읽는다)', () => {
     const raw = JSON.parse(readFileSync(new URL('../config.example.json', import.meta.url), 'utf8'));
     expect(raw.claude_bin).toBe('%USERPROFILE%\\.local\\bin\\claude.exe');

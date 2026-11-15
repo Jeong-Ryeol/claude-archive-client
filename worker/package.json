@@ -1,6 +1,6 @@
 {
   "name": "claude-talk-worker",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "노트북 워커: NAS ingest 와 웹소켓으로 붙어 대화 턴을 실행",
