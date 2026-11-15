@@ -4,6 +4,7 @@ import { Codex } from '@openai/codex-sdk';
 import type { Input, SandboxMode, ThreadEvent, ThreadItem, ThreadOptions, UserInput } from '@openai/codex-sdk';
 import { attachmentLines, downloadAttachments, type DownloadResult } from '../attach.js';
 import { DEFAULT_TURN_TOKENS } from './claude.js';
+import { refreshCodexPlan } from '../plan.js';
 import { ARCHIVE_APPEND, codexArchiveOptions, type ArchiveMcp } from '../archive.js';
 import type { Engine, EngineCtl, Ev, Job } from './types.js';
 import { friendlyError } from './errors.js';
@@ -145,6 +146,8 @@ export function createCodexEngine(deps: CodexDeps = {}): Engine {
       const messages: string[] = [];
       const started = new Set<string>();
       let lastError: string | null = null;
+      /** 이 턴의 Codex 세션 id (이어쓰기면 처음부터 안다) — 사용량을 기록 파일에서 읽을 때 쓴다 */
+      let sessionId: string | null = job.resume ?? null;
 
       const toolOf = (item: ThreadItem): { name: string; summary: string } | null => {
         switch (item.type) {
@@ -162,6 +165,7 @@ export function createCodexEngine(deps: CodexDeps = {}): Engine {
       const handle = (e: ThreadEvent): void => {
         switch (e.type) {
           case 'thread.started':
+            sessionId = e.thread_id;
             emit({ k: 'session', id: e.thread_id });
             return;
           case 'item.started': {
@@ -214,6 +218,7 @@ export function createCodexEngine(deps: CodexDeps = {}): Engine {
             return;
           }
           case 'turn.completed': {
+            void refreshCodexPlan(sessionId);       // 사용량(5시간·주간 %) — 기록 파일에서, 기다리지 않는다
             if (stopReason) return;
             const u = e.usage;
             emit({
@@ -225,6 +230,7 @@ export function createCodexEngine(deps: CodexDeps = {}): Engine {
             return;
           }
           case 'turn.failed': {
+            void refreshCodexPlan(sessionId);
             if (stopReason) return;
             const msg = e.error?.message || lastError || '알 수 없는 오류';
             emit({ k: 'error', kind: classifyCodexError(`${msg}\n${lastError ?? ''}`), message: msg });

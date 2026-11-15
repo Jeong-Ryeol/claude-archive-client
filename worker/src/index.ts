@@ -11,6 +11,7 @@ import { Thumbnailer } from './thumb.js';
 import { TopicRegistry } from './topics.js';
 import { WorksState } from './upload.js';
 import { readLocalVersion, Updater, UPDATE_EXIT_CODE } from './update.js';
+import { planSnapshot } from './plan.js';
 import { createProcessor, engineOfJob, isWorkFile, WorkQueue, WorkWatcher } from './watch.js';
 import { WorkerLink, type Frame } from './ws.js';
 
@@ -148,7 +149,8 @@ link = new WorkerLink({
   log,
   onFrame,
   hello: async () => ({ version, engines: { claude: await claudeInfo(), codex: await codexInfo() }, watch_roots: watcher.roots() }),
-  beat: async () => ({ ...queue.stats(), works: works.stats(), sys: await sysStats(WORKER_DIR) }),
+  // sys.plan = 구독 사용량(5시간·주간 %). 서버는 sys 를 통째로 저장하므로 서버 스키마를 안 바꿔도 된다
+  beat: async () => ({ ...queue.stats(), works: works.stats(), sys: { ...(await sysStats(WORKER_DIR)), plan: planSnapshot() } }),
 });
 link.start();
 

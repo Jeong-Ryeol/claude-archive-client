@@ -15,12 +15,27 @@ import { WORKER_DIR } from '../config.js';
 import { attachmentLines, downloadAttachments, type DownloadResult } from '../attach.js';
 import type { Engine, EngineCtl, Ev, Job } from './types.js';
 import { friendlyError } from './errors.js';
+import { noteClaudeRateLimit, noteClaudeUsage } from '../plan.js';
 
 export type QueryFn = (p: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => {
   [Symbol.asyncIterator](): AsyncIterator<SDKMessage>;
   interrupt(): Promise<unknown>;
   close?(): void;
+  /** 앱의 /usage 와 같은 데이터 (SDK 실험용 API — 없으면 사용량 표시만 빠진다) */
+  usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET?(o?: { skipBehaviors?: boolean }): Promise<unknown>;
 };
+
+/** 구독 사용량을 받아 plan.ts 에 둔다. 10초 안에 안 오거나 실패하면 조용히 넘어간다 (턴에는 영향 없음) */
+export function pullClaudeUsage(q: ReturnType<QueryFn> | null | undefined): Promise<void> {
+  const f = q?.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET;
+  if (!q || typeof f !== 'function') return Promise.resolve();
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<null>((r) => { timer = setTimeout(r, 10_000, null); });
+  return Promise.race([f.call(q, { skipBehaviors: true }), timeout])
+    .then((r) => { noteClaudeUsage(r); })
+    .catch(() => {})
+    .finally(() => clearTimeout(timer));
+}
 
 export interface ClaudeDeps {
   claudeBin: string;
@@ -284,7 +299,10 @@ export function createClaudeEngine(deps: ClaudeDeps): Engine {
       const handle = (m: SDKMessage): void => {
         switch (m.type) {
           case 'system':
-            if (m.subtype === 'init') emit({ k: 'session', id: m.session_id });
+            if (m.subtype === 'init') {
+              emit({ k: 'session', id: m.session_id });
+              void pullClaudeUsage(q);              // 사용량(5시간·주간 %) — 기다리지 않는다
+            }
             return;
           case 'stream_event': {
             if (m.parent_tool_use_id) return;
@@ -342,6 +360,7 @@ export function createClaudeEngine(deps: ClaudeDeps): Engine {
             return;
           }
           case 'rate_limit_event':
+            noteClaudeRateLimit(m.rate_limit_info);   // 5시간·주간 % (채팅방 사용량 줄)
             if (m.rate_limit_info?.status === 'rejected') hintKind = 'limit';
             return;
           case 'result': {
