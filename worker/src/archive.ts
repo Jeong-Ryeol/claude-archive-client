@@ -47,10 +47,18 @@ export function archiveMcpOf(endpoint: string, token: string, url?: string | nul
 export function codexArchiveOptions(
   env: Record<string, string>,
   archive: ArchiveMcp | null | undefined,
-): { env: Record<string, string>; config?: { mcp_servers: Record<string, { url: string; bearer_token_env_var: string }> } } {
+): {
+  env: Record<string, string>;
+  config?: { mcp_servers: Record<string, { url: string; bearer_token_env_var: string; default_tools_approval_mode: string }> };
+} {
   if (!archive) return { env };
   return {
     env: { ...env, [ARCHIVE_TOKEN_ENV]: archive.token },
-    config: { mcp_servers: { [ARCHIVE_SERVER]: { url: archive.url, bearer_token_env_var: ARCHIVE_TOKEN_ENV } } },
+    config: {
+      mcp_servers: {
+        // 채팅방 실행은 approval 'never' 라 승인이 필요한 MCP 도구는 자동 거절된다 → 이 서버(읽기 전용)는 미리 승인
+        [ARCHIVE_SERVER]: { url: archive.url, bearer_token_env_var: ARCHIVE_TOKEN_ENV, default_tools_approval_mode: 'approve' },
+      },
+    },
   };
 }

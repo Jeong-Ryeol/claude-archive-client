@@ -234,7 +234,11 @@ describe('codex 엔진', () => {
     const archive = { url: 'http://nas:8900/mcp', token: 'tok' };
     expect(codexArchiveOptions({ A: '1' }, archive)).toEqual({
       env: { A: '1', ARCHIVE_MCP_TOKEN: 'tok' },
-      config: { mcp_servers: { archive: { url: 'http://nas:8900/mcp', bearer_token_env_var: 'ARCHIVE_MCP_TOKEN' } } },
+      config: {
+        mcp_servers: {
+          archive: { url: 'http://nas:8900/mcp', bearer_token_env_var: 'ARCHIVE_MCP_TOKEN', default_tools_approval_mode: 'approve' },
+        },
+      },
     });
     expect(codexArchiveOptions({ A: '1' }, null)).toEqual({ env: { A: '1' } });
     expect(buildCodexInput(job({ prompt: 'q', context: '맥락' }), undefined, ARCHIVE_APPEND)).toEqual([
